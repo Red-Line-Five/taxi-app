@@ -36,7 +36,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-3xl font-bold mb-8">🚖 Taxi Dashboard</h1>
+      <h1 className="text-3xl font-bold text-yellow-500">🚖 Taxi Dashboard</h1>
 
       {/* Add Trip */}
       <div className="bg-white p-6 rounded shadow mb-8">
