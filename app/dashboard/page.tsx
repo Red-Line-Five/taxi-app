@@ -69,7 +69,7 @@ export default function Dashboard() {
 
       {/* Trips List */}
       <div className="bg-white p-6 rounded shadow">
-        <h2 className="text-xl font-bold mb-4">📋 All Trips</h2>
+        <h2 className="text-xl font-bold mb-4 text-red-500">📋 All Trips</h2>
         {trips.length === 0 && <p className="text-gray-500">No trips yet.</p>}
         {trips.map((trip: any) => (
           <div key={trip.id} className="border-b py-3">
