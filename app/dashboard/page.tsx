@@ -139,7 +139,7 @@ export default function Dashboard() {
       </div>
 
       {/* 3 sections side by side */}
-      <div className="flex gap-4 mb-8">
+      <div className="flex flex-col md:flex-row gap-4 mb-8">
 
         {/* Drivers Status */}
         <div className="bg-white p-4 rounded shadow flex-1">
