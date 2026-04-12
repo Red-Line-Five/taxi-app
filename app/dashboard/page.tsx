@@ -78,15 +78,17 @@ const searchClient = async () => {
 
 const addClient = async () => {
     if (!newName || !newPhone) return
-    const { error } = await supabase.from('clients').insert({
+    const { data, error } = await supabase.from('clients').insert({
       name: newName,
       phone: newPhone,
       address: newAddress
-    })
-    if (!error) {
-      // Auto-fill trip form
-      setCustomerName(newName)
-      setPickup(newAddress || '')
+    }).select().single()
+    
+    if (!error && data) {
+      // Auto-fill client w trip form
+      setFoundClient(data)
+      setCustomerName(data.name)
+      setPickup(data.address || '')
       alert('✅ Client added!')
       setNewName('')
       setNewPhone('')
@@ -145,6 +147,12 @@ const addTrip = async () => {
       📊 Reports
     </button>
     <button
+  onClick={() => window.location.href = '/drivers'}
+  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+>
+  👥 Drivers
+</button>
+    <button
       onClick={handleLogout}
       className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
     >
@@ -162,27 +170,32 @@ const addTrip = async () => {
           {drivers.length === 0 && <p className="text-gray-400 text-black">No drivers.</p>}
           <div className="flex flex-col gap-3">
             {drivers.map((driver: any) => (
-              <div
-                key={driver.id}
-                className={`p-3 rounded-lg border-2 ${
-                  driver.is_online
-                    ? 'border-green-400 bg-green-50'
-                    : 'border-red-300 bg-red-50'
-                }`}
-              >
-                <p className="font-bold">{driver.name}</p>
-                <button
-                  onClick={() => openWhatsApp(driver.phone)}
-                  className="text-black text-green-600 hover:underline"
-                >
-                  📱 {driver.phone}
-                </button>
-                <p className={`text-black font-bold mt-1 ${
-                  driver.is_online ? 'text-green-600' : 'text-red-500'
-                }`}>
-                  {driver.is_online ? '🟢 Online' : '🔴 Offline'}
-                </p>
-              </div>
+         <div
+  key={driver.id}
+  className={`p-3 rounded-lg border-2 ${
+    driver.is_online
+      ? 'border-green-400 bg-green-50'
+      : 'border-red-300 bg-red-50'
+  }`}
+>
+  <p
+    className="font-bold cursor-pointer hover:underline hover:text-blue-600"
+    onClick={() => window.location.href = `/driver?id=${driver.id}`}
+  >
+    {driver.name}
+  </p>
+  <button
+    onClick={() => openWhatsApp(driver.phone)}
+    className="text-sm text-green-600 hover:underline"
+  >
+    📱 {driver.phone}
+  </button>
+  <p className={`text-sm font-bold mt-1 ${
+    driver.is_online ? 'text-green-600' : 'text-red-500'
+  }`}>
+    {driver.is_online ? '🟢 Online' : '🔴 Offline'}
+  </p>
+</div>
             ))}
           </div>
         </div>
@@ -285,17 +298,26 @@ const addTrip = async () => {
           onChange={(e) => setDropoff(e.target.value)}
         />
         <select
-          className="w-full border p-2 rounded mb-3"
-          value={selectedDriver}
-          onChange={(e) => setSelectedDriver(e.target.value)}
-        >
-          <option value="">-- Select Driver --</option>
-          {drivers.filter((d) => d.is_online).map((driver: any) => (
-            <option key={driver.id} value={driver.id}>
-              🟢 {driver.name}
-            </option>
-          ))}
-        </select>
+  className="w-full border p-2 rounded mb-3 text-black"
+  value={selectedDriver}
+  onChange={(e) => setSelectedDriver(e.target.value)}
+>
+  <option value="">-- Select Driver --</option>
+  {drivers.filter((d) => d.is_online).map((driver: any) => {
+    const hasActiveTrip = trips.some(
+      (t) => t.assigned_driver_id === driver.id && t.status === 'active'
+    )
+    return (
+      <option
+        key={driver.id}
+        value={driver.id}
+        disabled={hasActiveTrip}
+      >
+        {hasActiveTrip ? `🔴 ${driver.name} (Busy)` : `🟢 ${driver.name} (Available)`}
+      </option>
+    )
+  })}
+</select>
         <div className="flex gap-3 mb-3">
           <div className="flex-1">
             <label className="text-black text-gray-500 mb-1 block">💵 USD</label>
