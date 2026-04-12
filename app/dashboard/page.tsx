@@ -57,7 +57,7 @@ export default function Dashboard() {
     setDrivers(data || [])
   }
 
-  const searchClient = async () => {
+const searchClient = async () => {
     if (!searchPhone) return
     const { data } = await supabase
       .from('clients')
@@ -67,15 +67,16 @@ export default function Dashboard() {
     setSearchDone(true)
     if (data) {
       setFoundClient(data)
-      // Auto-fill trip form
       setCustomerName(data.name)
       setPickup(data.address || '')
     } else {
       setFoundClient(null)
+      // Auto-fill phone in Add Client
+      setNewPhone(searchPhone)
     }
   }
 
-  const addClient = async () => {
+const addClient = async () => {
     if (!newName || !newPhone) return
     const { error } = await supabase.from('clients').insert({
       name: newName,
@@ -83,6 +84,9 @@ export default function Dashboard() {
       address: newAddress
     })
     if (!error) {
+      // Auto-fill trip form
+      setCustomerName(newName)
+      setPickup(newAddress || '')
       alert('✅ Client added!')
       setNewName('')
       setNewPhone('')
@@ -90,28 +94,31 @@ export default function Dashboard() {
     }
   }
 
-  const addTrip = async () => {
-    if (!customerName || !pickup || !dropoff) return
-    await supabase.from('trips').insert({
-      customer_name: customerName,
-      pickup_location: pickup,
-      dropoff_location: dropoff,
-      status: 'pending',
-      assigned_driver_id: selectedDriver || null,
-      price_usd: parseFloat(priceUsd) || 0,
-      price_lbp: parseFloat(priceLbp) || 0,
-    })
-    setCustomerName('')
-    setPickup('')
-    setDropoff('')
-    setSelectedDriver('')
-    setPriceUsd('')
-    setPriceLbp('')
-    setFoundClient(null)
-    setSearchPhone('')
-    setSearchDone(false)
-    fetchTrips()
+const addTrip = async () => {
+  if (!foundClient || !pickup || !dropoff) {
+    alert('⚠️ Please select a client first!')
+    return
   }
+  await supabase.from('trips').insert({
+    customer_name: foundClient.name,
+    client_id: foundClient.id,
+    pickup_location: pickup,
+    dropoff_location: dropoff,
+    status: 'pending',
+    assigned_driver_id: selectedDriver || null,
+    price_usd: parseFloat(priceUsd) || 0,
+    price_lbp: parseFloat(priceLbp) || 0,
+  })
+  setPickup('')
+  setDropoff('')
+  setSelectedDriver('')
+  setPriceUsd('')
+  setPriceLbp('')
+  setFoundClient(null)
+  setSearchPhone('')
+  setSearchDone(false)
+  fetchTrips()
+}
 
   const openWhatsApp = (phone: string) => {
     // Remove spaces and + from phone
@@ -127,16 +134,24 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-100 p-8">
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-yellow-500">🚖 Taxi Dashboard</h1>
-        <button
-          onClick={handleLogout}
-          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-        >
-          Logout
-        </button>
-      </div>
+    {/* Header */}
+<div className="flex justify-between items-center mb-8">
+  <h1 className="text-3xl font-bold text-yellow-500">🚖 Taxi Dashboard</h1>
+  <div className="flex gap-3">
+    <button
+      onClick={() => window.location.href = '/report'}
+      className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+    >
+      📊 Reports
+    </button>
+    <button
+      onClick={handleLogout}
+      className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+    >
+      Logout
+    </button>
+  </div>
+</div>
 
       {/* 3 sections side by side */}
       <div className="flex flex-col md:flex-row gap-4 mb-8">
@@ -144,7 +159,7 @@ export default function Dashboard() {
         {/* Drivers Status */}
         <div className="bg-white p-4 rounded shadow flex-1">
           <h2 className="text-lg font-bold mb-3">🚗 Drivers</h2>
-          {drivers.length === 0 && <p className="text-gray-400 text-sm">No drivers.</p>}
+          {drivers.length === 0 && <p className="text-gray-400 text-black">No drivers.</p>}
           <div className="flex flex-col gap-3">
             {drivers.map((driver: any) => (
               <div
@@ -158,11 +173,11 @@ export default function Dashboard() {
                 <p className="font-bold">{driver.name}</p>
                 <button
                   onClick={() => openWhatsApp(driver.phone)}
-                  className="text-sm text-green-600 hover:underline"
+                  className="text-black text-green-600 hover:underline"
                 >
                   📱 {driver.phone}
                 </button>
-                <p className={`text-sm font-bold mt-1 ${
+                <p className={`text-black font-bold mt-1 ${
                   driver.is_online ? 'text-green-600' : 'text-red-500'
                 }`}>
                   {driver.is_online ? '🟢 Online' : '🔴 Offline'}
@@ -177,14 +192,14 @@ export default function Dashboard() {
           <h2 className="text-lg font-bold mb-3">🔍 Search Client</h2>
           <div className="flex gap-2 mb-3">
             <input
-              className="flex-1 border p-2 rounded text-sm"
+              className="flex-1 border p-2 rounded text-black"
               placeholder="Phone number..."
               value={searchPhone}
               onChange={(e) => setSearchPhone(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && searchClient()}
             />
             <button
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-sm"
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-black"
               onClick={searchClient}
             >
               Search
@@ -194,20 +209,20 @@ export default function Dashboard() {
           {foundClient && (
             <div className="p-3 bg-green-50 rounded border border-green-200">
               <p className="font-bold text-green-800">✅ Found!</p>
-              <p className="text-sm">👤 {foundClient.name}</p>
+              <p className="text-black">👤 {foundClient.name}</p>
               <button
                 onClick={() => openWhatsApp(foundClient.phone)}
-                className="text-sm text-green-600 hover:underline"
+                className="text-black text-green-600 hover:underline"
               >
                 📱 {foundClient.phone}
               </button>
-              <p className="text-sm">📍 {foundClient.address}</p>
+              <p className="text-black">📍 {foundClient.address}</p>
               <p className="text-xs text-blue-500 mt-2">✅ Auto-filled in Add Trip!</p>
             </div>
           )}
 
           {searchDone && !foundClient && (
-            <p className="text-red-500 text-sm">❌ Client not found</p>
+            <p className="text-red-500 text-black">❌ Client not found</p>
           )}
         </div>
 
@@ -215,25 +230,25 @@ export default function Dashboard() {
         <div className="bg-white p-4 rounded shadow flex-1">
           <h2 className="text-lg font-bold mb-3">➕ Add Client</h2>
           <input
-            className="w-full border p-2 rounded mb-2 text-sm"
+            className="w-full border p-2 rounded mb-2 text-black"
             placeholder="Name"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
           />
           <input
-            className="w-full border p-2 rounded mb-2 text-sm"
+            className="w-full border p-2 rounded mb-2 text-black"
             placeholder="Phone"
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value)}
           />
           <input
-            className="w-full border p-2 rounded mb-3 text-sm"
+            className="w-full border p-2 rounded mb-3 text-black"
             placeholder="Address"
             value={newAddress}
             onChange={(e) => setNewAddress(e.target.value)}
           />
           <button
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 w-full text-sm"
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 w-full text-black"
             onClick={addClient}
           >
             Add Client
@@ -245,12 +260,18 @@ export default function Dashboard() {
       {/* Add Trip */}
       <div className="bg-white p-6 rounded shadow mb-8">
         <h2 className="text-xl font-bold mb-4">🚗 Add New Trip</h2>
-        <input
-          className="w-full border p-2 rounded mb-3"
-          placeholder="Customer Name"
-          value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
-        />
+        {foundClient ? (
+  <div className="w-full border p-3 rounded mb-3 bg-green-50 border-green-300">
+    <p className="text-sm text-gray-500">Customer</p>
+    <p className="font-bold text-black">👤 {foundClient.name}</p>
+    <p className="text-sm text-black">📱 {foundClient.phone}</p>
+    <p className="text-sm text-black">📍 {foundClient.address}</p>
+  </div>
+) : (
+  <div className="w-full border p-3 rounded mb-3 bg-yellow-50 border-yellow-300">
+    <p className="text-sm text-yellow-700">⚠️ Search or add a client first!</p>
+  </div>
+)}
         <input
           className="w-full border p-2 rounded mb-3"
           placeholder="Pickup Location"
@@ -277,7 +298,7 @@ export default function Dashboard() {
         </select>
         <div className="flex gap-3 mb-3">
           <div className="flex-1">
-            <label className="text-sm text-gray-500 mb-1 block">💵 USD</label>
+            <label className="text-black text-gray-500 mb-1 block">💵 USD</label>
             <input
               className="w-full border p-2 rounded"
               type="number"
@@ -287,7 +308,7 @@ export default function Dashboard() {
             />
           </div>
           <div className="flex-1">
-            <label className="text-sm text-gray-500 mb-1 block">🇱🇧 LBP</label>
+            <label className="text-black text-gray-500 mb-1 block">🇱🇧 LBP</label>
             <input
               className="w-full border p-2 rounded"
               type="number"
@@ -312,15 +333,15 @@ export default function Dashboard() {
         {trips.map((trip: any) => (
           <div key={trip.id} className="border-b py-3">
             <p className="font-bold">{trip.customer_name}</p>
-            <p className="text-sm text-gray-600">
+            <p className="text-black text-gray-600">
               📍 {trip.pickup_location} → {trip.dropoff_location}
             </p>
             <div className="flex gap-4 mt-1">
               {trip.price_usd > 0 && (
-                <p className="text-sm text-green-600">💵 ${trip.price_usd}</p>
+                <p className="text-black text-green-600">💵 ${trip.price_usd}</p>
               )}
               {trip.price_lbp > 0 && (
-                <p className="text-sm text-blue-600">🇱🇧 {trip.price_lbp.toLocaleString()} LBP</p>
+                <p className="text-black text-blue-600">🇱🇧 {trip.price_lbp.toLocaleString()} LBP</p>
               )}
             </div>
             <span className={`text-xs px-2 py-1 rounded mt-1 inline-block ${
