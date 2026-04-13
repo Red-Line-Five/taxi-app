@@ -12,6 +12,17 @@ export default function DriverPage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passMessage, setPassMessage] = useState('')
+  const [carType, setCarType] = useState('')
+  const [carNumber, setCarNumber] = useState('')
+  const [licenseExpiry, setLicenseExpiry] = useState('')
+  const [assuranceExpiry, setAssuranceExpiry] = useState('')
+  const [mecaniqueExpiry, setMecaniqueExpiry] = useState('')
+  const [smoking, setSmoking] = useState(false)
+  const [remarks, setRemarks] = useState('')
+  const [expiryAlerts, setExpiryAlerts] = useState<string[]>([])
+
+
+
 
   const changePassword = async () => {
     if (!newPassword || !confirmPassword) {
@@ -105,12 +116,70 @@ export default function DriverPage() {
       .eq('id', user.id)
       .single()
 
+
+         if (profile) {
+  setIsOnline(profile.is_online)
+  setDriverName(profile.name)
+  setCarType(profile.car_type || '')
+  setCarNumber(profile.car_number || '')
+  setLicenseExpiry(profile.license_expiry || '')
+  setAssuranceExpiry(profile.assurance_expiry || '')
+  setMecaniqueExpiry(profile.mecanique_expiry || '')
+  setSmoking(profile.smoking || false)
+  setRemarks(profile.remarks || '')
+
+  // Check expiry dates
+  checkExpiryAlerts(profile)
+}
+
     if (profile) {
       setIsOnline(profile.is_online)
       setDriverName(profile.name)
     }
     fetchMyTrips(user.id)
   }
+
+ const updateProfile = async () => {
+  if (!userId) return
+  await supabase
+    .from('profiles')
+    .update({
+      car_type: carType,
+      car_number: carNumber,
+      license_expiry: licenseExpiry || null,
+      assurance_expiry: assuranceExpiry || null,
+      mecanique_expiry: mecaniqueExpiry || null,
+      smoking,
+      remarks
+    })
+    .eq('id', userId)
+  alert('✅ Profile updated!')
+}
+
+const checkExpiryAlerts = (profile: any) => {
+  const alerts: string[] = []
+  const today = new Date()
+  const twoMonths = new Date()
+  twoMonths.setMonth(twoMonths.getMonth() + 2)
+
+  const check = (date: string, label: string) => {
+    if (!date) return
+    const d = new Date(date)
+    if (d <= twoMonths) {
+      const days = Math.ceil((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      if (days < 0) {
+        alerts.push(`❌ ${label} EXPIRED!`)
+      } else {
+        alerts.push(`⚠️ ${label} expires in ${days} days`)
+      }
+    }
+  }
+
+  check(profile.license_expiry, 'License')
+  check(profile.assurance_expiry, 'Assurance')
+  check(profile.mecanique_expiry, 'Mecanique')
+  setExpiryAlerts(alerts)
+}
 
   const fetchMyTrips = async (id?: string) => {
     const uid = id || userId
@@ -183,6 +252,99 @@ export default function DriverPage() {
           </button>
         )}
       </div>
+      {/* Expiry Alerts */}
+{expiryAlerts.length > 0 && (
+  <div className="bg-red-50 border border-red-300 p-4 rounded shadow mb-8">
+    <h2 className="text-lg font-bold text-red-700 mb-2">🚨 Attention Required!</h2>
+    {expiryAlerts.map((alert, i) => (
+      <p key={i} className="text-red-600 font-bold">{alert}</p>
+    ))}
+  </div>
+)}
+
+{/* Driver Profile */}
+{!isAdmin && (
+  <div className="bg-white p-6 rounded shadow mb-8">
+    <h2 className="text-xl font-bold mb-4">🚗 Car & Documents</h2>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+      <div>
+        <label className="text-sm text-gray-500 mb-1 block">Car Type</label>
+        <input
+          className="w-full border p-2 rounded text-black"
+          placeholder="ex: Toyota Corolla"
+          value={carType}
+          onChange={(e) => setCarType(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-sm text-gray-500 mb-1 block">Car Number</label>
+        <input
+          className="w-full border p-2 rounded text-black"
+          placeholder="ex: 123456"
+          value={carNumber}
+          onChange={(e) => setCarNumber(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-sm text-gray-500 mb-1 block">🪪 License Expiry</label>
+        <input
+          type="date"
+          className="w-full border p-2 rounded text-black"
+          value={licenseExpiry}
+          onChange={(e) => setLicenseExpiry(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-sm text-gray-500 mb-1 block">🛡️ Assurance Expiry</label>
+        <input
+          type="date"
+          className="w-full border p-2 rounded text-black"
+          value={assuranceExpiry}
+          onChange={(e) => setAssuranceExpiry(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-sm text-gray-500 mb-1 block">🔧 Mecanique Expiry</label>
+        <input
+          type="date"
+          className="w-full border p-2 rounded text-black"
+          value={mecaniqueExpiry}
+          onChange={(e) => setMecaniqueExpiry(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-sm text-gray-500 mb-1 block">Remarks</label>
+        <input
+          className="w-full border p-2 rounded text-black"
+          placeholder="ex: No smoking, Pet friendly..."
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+        />
+      </div>
+    </div>
+
+    {/* Smoking */}
+    <div className="flex items-center gap-3 mb-4">
+      <label className="font-bold">🚬 Smoking allowed in car?</label>
+      <button
+        onClick={() => setSmoking(!smoking)}
+        className={`px-4 py-1 rounded-full font-bold text-white ${
+          smoking ? 'bg-red-500' : 'bg-green-500'
+        }`}
+      >
+        {smoking ? 'Yes 🚬' : 'No 🚭'}
+      </button>
+    </div>
+
+    <button
+      onClick={updateProfile}
+      className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 w-full"
+    >
+      💾 Save Profile
+    </button>
+  </div>
+)}
 
       {/* Online/Offline Toggle */}
       <div className="bg-white p-6 rounded shadow mb-8">
