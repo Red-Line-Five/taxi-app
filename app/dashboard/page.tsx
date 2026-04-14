@@ -40,6 +40,43 @@ export default function Dashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
+  const [driverAlerts, setDriverAlerts] = useState<any[]>([])
+
+const checkDriverAlerts = (driversList: any[]) => {
+  const alerts: any[] = []
+  const today = new Date()
+  const twoMonths = new Date()
+  twoMonths.setMonth(twoMonths.getMonth() + 2)
+
+  driversList.forEach((driver) => {
+    const checks = [
+      { date: driver.license_expiry, label: 'License' },
+      { date: driver.assurance_expiry, label: 'Assurance' },
+      { date: driver.mecanique_expiry, label: 'Mecanique' },
+    ]
+
+    checks.forEach(({ date, label }) => {
+      if (!date) return
+      const d = new Date(date)
+      const days = Math.ceil((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      if (days < 0) {
+        alerts.push({
+          driver: driver.name,
+          message: `❌ ${label} EXPIRED!`,
+          urgent: true
+        })
+      } else if (d <= twoMonths) {
+        alerts.push({
+          driver: driver.name,
+          message: `⚠️ ${label} expires in ${days} days`,
+          urgent: false
+        })
+      }
+    })
+  })
+
+  setDriverAlerts(alerts)
+}
   const fetchTrips = async () => {
     const { data } = await supabase
       .from('trips')
@@ -48,14 +85,15 @@ export default function Dashboard() {
     setTrips(data || [])
   }
 
-  const fetchDrivers = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'driver')
-      .order('is_online', { ascending: false })
-    setDrivers(data || [])
-  }
+const fetchDrivers = async () => {
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'driver')
+    .order('is_online', { ascending: false })
+  setDrivers(data || [])
+  checkDriverAlerts(data || [])
+}
 
 const searchClient = async () => {
     if (!searchPhone) return
@@ -170,7 +208,7 @@ const addTrip = async () => {
           {drivers.length === 0 && <p className="text-gray-400 text-black">No drivers.</p>}
           <div className="flex flex-col gap-3">
             {drivers.map((driver: any) => (
-         <div
+       <div
   key={driver.id}
   className={`p-3 rounded-lg border-2 ${
     driver.is_online
@@ -178,18 +216,51 @@ const addTrip = async () => {
       : 'border-red-300 bg-red-50'
   }`}
 >
-  <p
-    className="font-bold cursor-pointer hover:underline hover:text-blue-600"
-    onClick={() => window.location.href = `/driver?id=${driver.id}`}
-  >
-    {driver.name}
-  </p>
+  {/* Name + Alerts */}
+  <div className="flex items-center gap-2 flex-wrap">
+    <p
+      className="font-bold cursor-pointer hover:underline hover:text-blue-600"
+      onClick={() => window.location.href = `/driver?id=${driver.id}`}
+    >
+      {driver.name}
+    </p>
+    {(() => {
+      const today = new Date()
+      const twoMonths = new Date()
+      twoMonths.setMonth(twoMonths.getMonth() + 2)
+      const checks = [
+        { date: driver.license_expiry, label: 'Lic' },
+        { date: driver.assurance_expiry, label: 'Ass' },
+        { date: driver.mecanique_expiry, label: 'Mec' },
+      ]
+      return checks.map(({ date, label }) => {
+        if (!date) return null
+        const d = new Date(date)
+        const days = Math.ceil((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        if (d > twoMonths) return null
+        return (
+          <span
+            key={label}
+            className={`text-xs px-1 py-0.5 rounded font-bold ${
+              days < 0 ? 'bg-red-200 text-red-700' : 'bg-yellow-200 text-yellow-700'
+            }`}
+          >
+            {days < 0 ? `❌${label}` : `⚠️${label} ${days}d`}
+          </span>
+        )
+      })
+    })()}
+  </div>
+
+  {/* Phone */}
   <button
     onClick={() => openWhatsApp(driver.phone)}
     className="text-sm text-green-600 hover:underline"
   >
     📱 {driver.phone}
   </button>
+
+  {/* Status */}
   <p className={`text-sm font-bold mt-1 ${
     driver.is_online ? 'text-green-600' : 'text-red-500'
   }`}>
@@ -376,6 +447,28 @@ const addTrip = async () => {
           </div>
         ))}
       </div>
+      {/* Driver Alerts */}
+{driverAlerts.length > 0 && (
+  <div className="bg-red-50 border border-red-300 p-4 rounded shadow mb-8">
+    <h2 className="text-lg font-bold text-red-700 mb-3">
+      🚨 Driver Documents Alert
+    </h2>
+    {driverAlerts.map((alert, i) => (
+      <div
+        key={i}
+        className={`flex items-center gap-3 p-2 rounded mb-2 ${
+          alert.urgent ? 'bg-red-100' : 'bg-yellow-100'
+        }`}
+      >
+        <p className={`font-bold ${
+          alert.urgent ? 'text-red-700' : 'text-yellow-700'
+        }`}>
+          🚗 {alert.driver} — {alert.message}
+        </p>
+      </div>
+    ))}
+  </div>
+)}
 
     </div>
   )
