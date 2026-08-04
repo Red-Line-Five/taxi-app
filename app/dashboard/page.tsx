@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '../../lib/supabase'
 import { getMyContext, MyContext } from '../../lib/context'
+import { parseLocationInput, googleMapsLink } from '../../lib/location'
 
 const DriverMap = dynamic(() => import('../../components/DriverMap'), { ssr: false })
 
@@ -22,6 +23,22 @@ export default function Dashboard() {
   const [dropoffLat, setDropoffLat] = useState('')
   const [dropoffLng, setDropoffLng] = useState('')
   const [manualPrice, setManualPrice] = useState('')
+  const [pickupPaste, setPickupPaste] = useState('')
+  const [dropoffPaste, setDropoffPaste] = useState('')
+
+  const parsePickup = () => {
+    const parsed = parseLocationInput(pickupPaste)
+    if (!parsed) { setMessage('❌ Could not read coordinates from that. If it\'s a short link (maps.app.goo.gl), ask the client to share as plain text/address instead.'); return }
+    setPickupLat(String(parsed.lat)); setPickupLng(String(parsed.lng))
+    setMessage('✅ Pickup location captured from WhatsApp')
+  }
+
+  const parseDropoff = () => {
+    const parsed = parseLocationInput(dropoffPaste)
+    if (!parsed) { setMessage('❌ Could not read coordinates from that.'); return }
+    setDropoffLat(String(parsed.lat)); setDropoffLng(String(parsed.lng))
+    setMessage('✅ Dropoff location captured')
+  }
 
   // nearby driver search, scoped to a specific just-created trip
   const [nearbyFor, setNearbyFor] = useState<string | null>(null)
@@ -251,15 +268,29 @@ export default function Dashboard() {
           <input className="border p-2 rounded" placeholder="Client name (optional)" value={clientName} onChange={(e) => setClientName(e.target.value)} />
           <input className="border p-2 rounded" placeholder="Client phone" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <input className="border p-2 rounded" placeholder="Pickup label" value={pickupLabel} onChange={(e) => setPickupLabel(e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Pickup lat" value={pickupLat} onChange={(e) => setPickupLat(e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Pickup lng" value={pickupLng} onChange={(e) => setPickupLng(e.target.value)} />
+        <div className="mb-3">
+          <label className="text-sm text-gray-500 mb-1 block">📍 Pickup — paste the location link/text the client sent on WhatsApp</label>
+          <div className="flex gap-2 mb-2">
+            <input className="border p-2 rounded flex-1" placeholder="Paste WhatsApp location here" value={pickupPaste} onChange={(e) => setPickupPaste(e.target.value)} />
+            <button type="button" onClick={parsePickup} className="bg-green-500 text-white px-4 rounded hover:bg-green-600 text-sm">Parse</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input className="border p-2 rounded" placeholder="Pickup label (e.g. building name)" value={pickupLabel} onChange={(e) => setPickupLabel(e.target.value)} />
+            <input className="border p-2 rounded" placeholder="Pickup lat" value={pickupLat} onChange={(e) => setPickupLat(e.target.value)} />
+            <input className="border p-2 rounded" placeholder="Pickup lng" value={pickupLng} onChange={(e) => setPickupLng(e.target.value)} />
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <input className="border p-2 rounded" placeholder="Dropoff label" value={dropoffLabel} onChange={(e) => setDropoffLabel(e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Dropoff lat" value={dropoffLat} onChange={(e) => setDropoffLat(e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Dropoff lng" value={dropoffLng} onChange={(e) => setDropoffLng(e.target.value)} />
+        <div className="mb-3">
+          <label className="text-sm text-gray-500 mb-1 block">🏁 Dropoff — paste location link (optional)</label>
+          <div className="flex gap-2 mb-2">
+            <input className="border p-2 rounded flex-1" placeholder="Paste WhatsApp location here" value={dropoffPaste} onChange={(e) => setDropoffPaste(e.target.value)} />
+            <button type="button" onClick={parseDropoff} className="bg-green-500 text-white px-4 rounded hover:bg-green-600 text-sm">Parse</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input className="border p-2 rounded" placeholder="Dropoff label" value={dropoffLabel} onChange={(e) => setDropoffLabel(e.target.value)} />
+            <input className="border p-2 rounded" placeholder="Dropoff lat" value={dropoffLat} onChange={(e) => setDropoffLat(e.target.value)} />
+            <input className="border p-2 rounded" placeholder="Dropoff lng" value={dropoffLng} onChange={(e) => setDropoffLng(e.target.value)} />
+          </div>
         </div>
         <input className="w-full border p-2 rounded mb-3" placeholder="Manual price (optional — overrides per-km pricing)" value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} />
         <button className="bg-yellow-400 font-bold px-6 py-2 rounded hover:bg-yellow-500 w-full" onClick={createTrip}>
@@ -289,7 +320,12 @@ export default function Dashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-bold">{trip.client_name || trip.client_phone}</p>
-                <p className="text-gray-600 text-sm">📍 {trip.pickup_label || '—'} → {trip.dropoff_label || '—'}</p>
+                <p className="text-gray-600 text-sm">
+                  📍 {trip.pickup_label || '—'} → {trip.dropoff_label || '—'}
+                  {trip.pickup_lat && (
+                    <a href={googleMapsLink(trip.pickup_lat, trip.pickup_lng)} target="_blank" className="text-blue-500 hover:underline ml-2">🗺️ Open pickup in Maps</a>
+                  )}
+                </p>
                 {trip.price && <p className="text-green-600 text-sm">💵 ${trip.price}</p>}
                 {trip.drivers && <p className="text-sm text-gray-500">Driver: {trip.drivers.full_name}</p>}
               </div>

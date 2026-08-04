@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getMyContext, MyContext } from '../../lib/context'
+import { googleMapsLink } from '../../lib/location'
 
 const DOC_TYPES: { key: string; label: string; emoji: string }[] = [
   { key: 'driving_license', label: 'License', emoji: '🪪' },
@@ -221,7 +222,13 @@ export default function DriverPage() {
         {trips.map((trip: any) => (
           <div key={trip.id} className="border-b py-4">
             <p className="font-bold text-lg">{trip.client_name || trip.client_phone}</p>
-            <p className="text-sm text-gray-600 mb-1">📍 Pickup: {trip.pickup_label || '—'}</p>
+            <a href={`https://wa.me/${(trip.client_phone || '').replace(/\D/g, '')}`} target="_blank" className="text-sm text-green-600 hover:underline">📱 {trip.client_phone}</a>
+            <p className="text-sm text-gray-600 mb-1 mt-1">
+              📍 Pickup: {trip.pickup_label || '—'}
+              {trip.pickup_lat && (
+                <a href={googleMapsLink(trip.pickup_lat, trip.pickup_lng)} target="_blank" className="text-blue-500 hover:underline ml-2 font-bold">🗺️ Navigate</a>
+              )}
+            </p>
             <p className="text-sm text-gray-600 mb-3">🏁 Dropoff: {trip.dropoff_label || '—'}</p>
             {trip.price && <p className="text-sm text-green-600 mb-2">💵 ${trip.price}</p>}
             <span className={`text-xs px-2 py-1 rounded mr-3 ${statusColor[trip.status]}`}>{trip.status}</span>
