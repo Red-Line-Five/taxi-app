@@ -1,7 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { supabase } from '../../lib/supabase'
 import { getMyContext, MyContext } from '../../lib/context'
+
+const DriverMap = dynamic(() => import('../../components/DriverMap'), { ssr: false })
 
 export default function Dashboard() {
   const [ctx, setCtx] = useState<MyContext | null>(null)
@@ -204,8 +207,27 @@ export default function Dashboard() {
       {/* Active drivers */}
       <div className="bg-white p-4 rounded shadow mb-6">
         <h2 className="text-lg font-bold mb-3">🚗 Active Drivers ({activeDrivers.length})</h2>
-        {activeDrivers.length === 0 && <p className="text-gray-400">No active drivers yet. Share your invite code.</p>}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+        {/* Map */}
+        <DriverMap
+          drivers={activeDrivers
+            .filter((row: any) => row.location)
+            .map((row: any) => ({
+              id: row.drivers?.id,
+              name: row.drivers?.full_name,
+              lat: row.location.lat,
+              lng: row.location.lng,
+              isAvailable: !!row.location.is_available
+            }))}
+          pickup={
+            pickupLat && pickupLng
+              ? { lat: parseFloat(pickupLat), lng: parseFloat(pickupLng), label: pickupLabel }
+              : null
+          }
+        />
+
+        {activeDrivers.length === 0 && <p className="text-gray-400 mt-3">No active drivers yet. Share your invite code.</p>}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
           {activeDrivers.map((row: any) => (
             <div key={row.id} className={`p-3 rounded-lg border-2 ${row.location?.is_available ? 'border-green-400 bg-green-50' : 'border-red-300 bg-red-50'}`}>
               <p className="font-bold">{row.drivers?.full_name}</p>
