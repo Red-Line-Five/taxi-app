@@ -1,187 +1,145 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase, anonKey } from '../../lib/supabase'
-
+import { supabase } from '../../lib/supabase'
+import { getMyContext, MyContext } from '../../lib/context'
 
 export default function DriversManagement() {
-  const [drivers, setDrivers] = useState<any[]>([])
-  const [newEmail, setNewEmail] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [newName, setNewName] = useState('')
-  const [newPhone, setNewPhone] = useState('')
-  const [newCommission, setNewCommission] = useState('10')
+  const [ctx, setCtx] = useState<MyContext | null>(null)
+  const [rows, setRows] = useState<any[]>([])
+  const [docAlerts, setDocAlerts] = useState<Record<string, string[]>>({})
   const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchDrivers()
+    (async () => {
+      const c = await getMyContext()
+      if (!c) { window.location.href = '/'; return }
+      if (c.role !== 'office_admin') { window.location.href = '/driver'; return }
+      setCtx(c)
+      fetchDrivers()
+    })()
   }, [])
 
   const fetchDrivers = async () => {
     const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'driver')
-      .order('name')
-    setDrivers(data || [])
-  }
+      .from('office_drivers')
+      .select('id, status, commission_percent, joined_at, drivers(id, full_name, phone)')
+      .neq('status', 'removed')
+      .order('joined_at', { ascending: false })
+    setRows(data || [])
 
-const addDriver = async () => {
-    if (!newEmail || !newPassword || !newName || !newPhone) {
-      setMessage('❌ Please fill all fields')
-      return
+    const driverIds = (data || []).map((r: any) => r.drivers?.id).filter(Boolean)
+    if (driverIds.length) {
+      const { data: docs } = await supabase
+        .from('driver_documents')
+        .select('driver_id, doc_type, expiry_date')
+        .in('driver_id', driverIds)
+      const today = new Date()
+      const twoMonths = new Date(); twoMonths.setMonth(twoMonths.getMonth() + 2)
+      const alerts: Record<string, string[]> = {}
+      ;(docs || []).forEach((d: any) => {
+        if (!d.expiry_date) return
+        const date = new Date(d.expiry_date)
+        if (date > twoMonths) return
+        const days = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        const label = d.doc_type.replace('_', ' ')
+        const msg = days < 0 ? `❌ ${label} expired` : `⚠️ ${label} in ${days}d`
+        alerts[d.driver_id] = [...(alerts[d.driver_id] || []), msg]
+      })
+      setDocAlerts(alerts)
     }
-    setLoading(true)
-
-const response = await fetch(
-  'https://zfmpwqyntyadprmnogfj.supabase.co/functions/v1/create-driver',
-  {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${anonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
-    },
-    body: JSON.stringify({
-      email: newEmail,
-      password: newPassword,
-      name: newName,
-      phone: newPhone,
-      commission: parseFloat(newCommission) || 10,
-      company_id: null
-    })
-  }
-)
-
-    const result = await response.json()
-
-    if (result.error) {
-      setMessage('❌ ' + result.error)
-    } else {
-      setMessage('✅ Driver added!')
-      setNewEmail('')
-      setNewPassword('')
-      setNewName('')
-      setNewPhone('')
-      setNewCommission('10')
-      fetchDrivers()
-    }
-    setLoading(false)
   }
 
-  const deleteDriver = async (id: string, name: string) => {
-    if (!confirm(`Delete driver ${name}?`)) return
-    await supabase.from('profiles').delete().eq('id', id)
-    setMessage('✅ Driver deleted!')
+  const approve = async (id: string) => {
+    await supabase.from('office_drivers').update({ status: 'active' }).eq('id', id)
+    fetchDrivers()
+  }
+
+  const suspend = async (id: string) => {
+    await supabase.from('office_drivers').update({ status: 'suspended' }).eq('id', id)
+    fetchDrivers()
+  }
+
+  const reactivate = async (id: string) => {
+    await supabase.from('office_drivers').update({ status: 'active' }).eq('id', id)
+    fetchDrivers()
+  }
+
+  const remove = async (id: string, name: string) => {
+    if (!confirm(`Remove ${name} from your office?`)) return
+    await supabase.from('office_drivers').update({ status: 'removed' }).eq('id', id)
+    setMessage('✅ Driver removed from your office')
     fetchDrivers()
   }
 
   const updateCommission = async (id: string, percent: number) => {
-    await supabase
-      .from('profiles')
-      .update({ commission_percent: percent })
-      .eq('id', id)
+    await supabase.from('office_drivers').update({ commission_percent: percent }).eq('id', id)
     fetchDrivers()
+  }
+
+  const openWhatsApp = (phone: string) => {
+    const cleaned = (phone || '').replace(/\D/g, '')
+    window.open(`https://wa.me/${cleaned}`, '_blank')
+  }
+
+  const statusBadge: Record<string, string> = {
+    pending: 'bg-yellow-100 text-yellow-800',
+    active: 'bg-green-100 text-green-800',
+    suspended: 'bg-gray-200 text-gray-600'
   }
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
-
-      {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-yellow-500">👥 Drivers Management</h1>
-        <button
-          onClick={() => window.location.href = '/dashboard'}
-          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-        >
-          ← Dashboard
-        </button>
+        <button onClick={() => window.location.href = '/dashboard'} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">← Dashboard</button>
       </div>
 
-      {/* Add Driver */}
+      {message && <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded mb-6">{message}</div>}
+
+      {/* Invite code */}
       <div className="bg-white p-6 rounded shadow mb-8">
-        <h2 className="text-xl font-bold mb-4">➕ Add New Driver</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input
-            className="border p-2 rounded text-black"
-            placeholder="Full Name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-          />
-          <input
-            className="border p-2 rounded text-black"
-            placeholder="Phone"
-            value={newPhone}
-            onChange={(e) => setNewPhone(e.target.value)}
-          />
-          <input
-            className="border p-2 rounded text-black"
-            placeholder="Email"
-            type="email"
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-          />
-          <input
-            className="border p-2 rounded text-black"
-            placeholder="Password"
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-          <input
-            className="border p-2 rounded text-black"
-            placeholder="Commission %"
-            type="number"
-            value={newCommission}
-            onChange={(e) => setNewCommission(e.target.value)}
-          />
-        </div>
-        <button
-          className="mt-4 bg-yellow-400 font-bold px-6 py-2 rounded hover:bg-yellow-500 disabled:opacity-50"
-          onClick={addDriver}
-          disabled={loading}
-        >
-          {loading ? 'Adding...' : 'Add Driver'}
-        </button>
-        {message && (
-          <p className={`mt-3 text-sm ${message.includes('✅') ? 'text-green-600' : 'text-red-500'}`}>
-            {message}
-          </p>
-        )}
+        <h2 className="text-xl font-bold mb-2">📨 Invite drivers</h2>
+        <p className="text-gray-500 mb-2">Share this code — drivers enter it in their app to request joining your office:</p>
+        <p className="font-mono font-bold text-2xl bg-gray-100 inline-block px-4 py-2 rounded">{ctx?.office_invite_code}</p>
       </div>
 
-      {/* Drivers List */}
+      {/* Drivers list */}
       <div className="bg-white p-6 rounded shadow">
-        <h2 className="text-xl font-bold mb-4">🚗 All Drivers ({drivers.length})</h2>
-        {drivers.length === 0 && <p className="text-gray-400">No drivers yet.</p>}
-        {drivers.map((driver) => (
-          <div key={driver.id} className="border-b py-4">
-            <div className="flex justify-between items-start">
+        <h2 className="text-xl font-bold mb-4">🚗 Drivers ({rows.length})</h2>
+        {rows.length === 0 && <p className="text-gray-400">No drivers yet. Share your invite code above.</p>}
+        {rows.map((row) => (
+          <div key={row.id} className="border-b py-4">
+            <div className="flex justify-between items-start flex-wrap gap-2">
               <div>
-                <p className="font-bold text-black text-lg">{driver.name}</p>
-                <p className="text-sm text-gray-500">📞 {driver.phone}</p>
-                <span className={`text-sm font-bold ${
-                  driver.is_online ? 'text-green-600' : 'text-red-500'
-                }`}>
-                  {driver.is_online ? '🟢 Online' : '🔴 Offline'}
-                </span>
+                <p className="font-bold text-lg">
+                  {row.drivers?.full_name}{' '}
+                  <span className={`text-xs px-2 py-0.5 rounded ${statusBadge[row.status]}`}>{row.status}</span>
+                </p>
+                <button onClick={() => openWhatsApp(row.drivers?.phone)} className="text-sm text-green-600 hover:underline">📱 {row.drivers?.phone}</button>
+                {docAlerts[row.drivers?.id]?.map((a, i) => (
+                  <p key={i} className="text-xs text-red-600 font-bold">{a}</p>
+                ))}
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-500">Commission:</label>
-                  <input
-                    type="number"
-                    className="border p-1 rounded w-16 text-black text-center"
-                    value={driver.commission_percent}
-                    onChange={(e) => updateCommission(driver.id, parseFloat(e.target.value))}
-                  />
-                  <span className="text-sm text-gray-500">%</span>
-                </div>
-                <button
-                  onClick={() => deleteDriver(driver.id, driver.name)}
-                  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm"
-                >
-                  🗑️ Delete
-                </button>
+                {row.status === 'active' && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-500">Commission:</label>
+                    <input type="number" className="border p-1 rounded w-16 text-center"
+                      value={row.commission_percent}
+                      onChange={(e) => updateCommission(row.id, parseFloat(e.target.value))} />
+                    <span className="text-sm text-gray-500">%</span>
+                  </div>
+                )}
+                {row.status === 'pending' && (
+                  <button onClick={() => approve(row.id)} className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">✅ Approve</button>
+                )}
+                {row.status === 'active' && (
+                  <button onClick={() => suspend(row.id)} className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-sm">⏸ Suspend</button>
+                )}
+                {row.status === 'suspended' && (
+                  <button onClick={() => reactivate(row.id)} className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm">▶ Reactivate</button>
+                )}
+                <button onClick={() => remove(row.id, row.drivers?.full_name)} className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">🗑️ Remove</button>
               </div>
             </div>
           </div>
